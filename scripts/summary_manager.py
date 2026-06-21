@@ -22,7 +22,7 @@ def load_existing_tasks() -> set:
     tasks = set()
     for line in SUMMARY_FILE.read_text().splitlines():
         line = line.strip()
-        if line.startswith("- [ ] "):
+        if line.startswith("-"):
             tasks.add(line[6:].strip().lower())
         elif line.startswith("- [x] "):
             tasks.add(line[6:].strip().lower())

@@ -37,3 +37,7 @@ EXAMPLE FORMAT:
 -  Project Structure — reorganize DDR folder into scripts, data, config directories for clean layout
 -  Summary Manager — fix file paths to match new organized folder structure
 -  Track Skill — update summary_manager path in /track skill to scripts/ directory
+- [ ] Google Chat Integration — build ./send command to upload PDF to Drive and post in Chat space
+- [ ] Environment Config — create .env for credentials and project.json for project settings
+- [ ] Template System — add templates.json to dynamically control which Google Doc is used
+- [ ] Project Restructure — organize DDR into scripts, data, config folders with gitignore

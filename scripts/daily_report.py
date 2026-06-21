@@ -16,6 +16,7 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import sys
 from datetime import date
@@ -26,9 +27,15 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).parent.parent
 load_dotenv(ROOT_DIR / ".env")
 
-DOC_ID = os.getenv("GOOGLE_DOC_ID", "")
-_start = os.getenv("PROJECT_START_DATE", "2026-06-17")
-PROJECT_START_DATE = date.fromisoformat(_start)
+# Project info from data/project.json
+_proj = json.loads((ROOT_DIR / "data" / "project.json").read_text())
+PROJECT_START_DATE = date.fromisoformat(_proj["project_start_date"])
+
+# Template → Doc ID from data/templates.json
+_templates = json.loads((ROOT_DIR / "data" / "templates.json").read_text())
+_tpl_name = _proj.get("template_name", "daily_report")
+_tpl = _templates.get(_tpl_name, {})
+DOC_ID = _tpl.get("doc_id") or os.getenv("GOOGLE_DOC_ID", "")
 CREDS_FILE = ROOT_DIR / "config" / "credentials.json"
 TOKEN_FILE = ROOT_DIR / "config" / "token.json"
 TASK_FILE = ROOT_DIR / "data" / "task.md"
