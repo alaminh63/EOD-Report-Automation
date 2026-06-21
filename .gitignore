@@ -1,0 +1,13 @@
+# secrets & auth
+.env
+config/credentials.json
+config/token.json
+
+# python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# generated files
+data/work_updates/
