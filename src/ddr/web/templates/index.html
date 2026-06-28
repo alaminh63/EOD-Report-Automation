@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudGen Daily Report</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --card: #1a1d27; --border: #2a2d3e;
+      --accent: #6366f1; --accent-h: #4f52d9;
+      --green: #22c55e; --red: #ef4444;
+      --text: #e2e8f0; --muted: #64748b; --r: 10px;
+    }
+    body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+    /* ── Header ── */
+    header { padding:.75rem 1.25rem; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:1.25rem; flex-wrap:wrap; flex-shrink:0; }
+    header h1 { font-size:1.1rem; font-weight:700; white-space:nowrap; }
+    .status-bar { display:flex; gap:.75rem; flex-wrap:wrap; }
+    .status-dot { font-size:.72rem; color:var(--muted); display:flex; align-items:center; gap:.3rem; }
+    .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); }
+    .dot.ok { background:var(--green); }
+    .dot.warn { background:#f59e0b; }
+    .dot.err { background:var(--red); }
+    .model-chain { display:flex; gap:.35rem; flex-wrap:wrap; margin-left:auto; }
+    .model-pill { font-size:.68rem; padding:.15rem .45rem; border-radius:20px; background:var(--bg); border:1px solid var(--border); color:var(--muted); cursor:pointer; transition:all .15s; user-select:none; }
+    .model-pill:hover { border-color:var(--text); color:var(--text); }
+    .model-pill.active { border-color:var(--accent); color:var(--accent); background:#1e1f3a; }
+
+    /* ── Split layout ── */
+    .main { display:flex; flex:1; overflow:hidden; }
+    .left-panel { width:420px; min-width:320px; max-width:520px; overflow-y:auto; border-right:1px solid var(--border); padding:1rem; display:flex; flex-direction:column; gap:.9rem; flex-shrink:0; }
+    .right-panel { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#111318; }
+    .pdf-toolbar { padding:.5rem .75rem; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:.75rem; font-size:.8rem; color:var(--muted); flex-shrink:0; }
+    .pdf-toolbar span { font-weight:600; color:var(--text); }
+    .pdf-toolbar a { color:var(--accent); text-decoration:none; font-size:.78rem; }
+    .pdf-toolbar a:hover { text-decoration:underline; }
+    #pdf-frame { flex:1; border:none; background:#fff; }
+    .pdf-placeholder { flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:.75rem; color:var(--muted); font-size:.875rem; }
+    .pdf-placeholder svg { opacity:.25; }
+
+    /* ── Cards ── */
+    .card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:1.1rem; }
+    .card h2 { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:.8rem; }
+    textarea, input[type=text], input[type=number] {
+      background:var(--bg); border:1px solid var(--border); border-radius:6px;
+      color:var(--text); font-family:inherit; font-size:.875rem;
+      padding:.55rem .7rem; outline:none; transition:border-color .15s;
+    }
+    textarea { width:100%; resize:vertical; }
+    textarea:focus, input[type=text]:focus, input[type=number]:focus { border-color:var(--accent); }
+    .row { display:flex; gap:.6rem; align-items:center; margin-top:.65rem; flex-wrap:wrap; }
+    .label-sm { color:var(--muted); font-size:.82rem; }
+    input[type=number] { width:56px; }
+    button { padding:.45rem .9rem; border-radius:6px; border:none; font-size:.825rem; font-weight:500; cursor:pointer; transition:background .15s, opacity .15s; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover { background:var(--accent-h); }
+    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { color:var(--text); border-color:var(--text); }
+    .btn-run { background:var(--green); color:#fff; font-size:.95rem; padding:.6rem 1.4rem; width:100%; }
+    .btn-run:hover { opacity:.9; }
+    .btn-run:disabled { opacity:.4; cursor:not-allowed; }
+
+    /* ── Task list ── */
+    #task-list, #done-list { list-style:none; }
+    .ti { display:flex; align-items:center; gap:.45rem; margin-bottom:.4rem; }
+    .ti input[type=text] { flex:1; }
+    .ti.done input[type=text] { text-decoration:line-through; color:var(--muted); }
+    .ti.done { opacity:.6; }
+    .cb { width:15px; height:15px; accent-color:var(--green); cursor:pointer; flex-shrink:0; }
+    .rm { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:1rem; padding:0 .2rem; }
+    .rm:hover { color:var(--red); }
+    .add-row { width:100%; padding:.4rem; background:transparent; border:1px dashed var(--border); border-radius:6px; color:var(--muted); font-size:.8rem; cursor:pointer; margin-top:.2rem; display:none; }
+    .add-row:hover { border-color:var(--accent); color:var(--accent); }
+    .empty-hint { color:var(--muted); font-size:.82rem; text-align:center; padding:1rem 0; }
+    .section-label { font-size:.65rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:.6rem 0 .3rem; display:none; }
+    .section-label.visible { display:block; }
+
+    /* ── Toggle ── */
+    .toggle-row { display:flex; align-items:center; gap:.65rem; font-size:.85rem; }
+    .toggle { position:relative; width:38px; height:21px; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .sl { position:absolute; inset:0; background:var(--border); border-radius:22px; cursor:pointer; transition:background .2s; }
+    .sl::before { content:""; position:absolute; width:15px; height:15px; left:3px; top:3px; background:#fff; border-radius:50%; transition:transform .2s; }
+    .toggle input:checked + .sl { background:var(--accent); }
+    .toggle input:checked + .sl::before { transform:translateX(17px); }
+
+    /* ── Result steps ── */
+    #status-panel { display:none; }
+    .step { display:flex; align-items:flex-start; gap:.65rem; padding:.5rem 0; border-bottom:1px solid var(--border); font-size:.82rem; }
+    .step:last-child { border-bottom:none; }
+    .si { min-width:18px; }
+    .sl-l { font-weight:500; }
+    .sl-m { color:var(--muted); font-size:.75rem; margin-top:.12rem; }
+    .ok { color:var(--green); }
+    .fail { color:var(--red); }
+    .links { margin-top:.75rem; display:flex; gap:.6rem; flex-wrap:wrap; }
+    .links a { display:inline-flex; align-items:center; gap:.3rem; color:var(--accent); text-decoration:none; font-size:.82rem; border:1px solid var(--accent); border-radius:6px; padding:.35rem .7rem; }
+    .links a:hover { background:var(--accent); color:#fff; }
+
+    /* ── Log panel ── */
+    .log-panel { margin-top:.65rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:.5rem .7rem; font-size:.72rem; font-family:monospace; display:none; max-height:130px; overflow-y:auto; }
+    .log-line { padding:.08rem 0; display:flex; gap:.5rem; align-items:center; }
+    .log-ok { color:var(--green); }
+    .log-fail { color:#f59e0b; }
+    .log-ms { color:var(--muted); margin-left:auto; }
+
+    /* ── Spinner ── */
+    .spin { display:none; width:12px; height:12px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; vertical-align:middle; margin-left:.3rem; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      body { overflow:auto; }
+      .main { flex-direction:column; }
+      .left-panel { width:100%; max-width:100%; border-right:none; border-bottom:1px solid var(--border); overflow-y:visible; }
+      .right-panel { height:60vh; }
+      .model-chain { margin-left:0; margin-top:.5rem; width:100%; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📋 CloudGen Daily Report</h1>
+  <div class="status-bar" id="status-bar">
+    <span class="status-dot"><span class="dot" id="dot-doc"></span>Google Doc</span>
+    <span class="status-dot"><span class="dot" id="dot-chat"></span>Chat</span>
+    <span class="status-dot"><span class="dot" id="dot-llm"></span>AI (<span id="llm-label">checking…</span>)</span>
+  </div>
+  <div class="model-chain" id="model-chain"></div>
+</header>
+
+<div class="main">
+  <!-- ── Left: Controls ── -->
+  <div class="left-panel">
+
+    <!-- Step 1 -->
+    <div class="card">
+      <h2>Step 1 — Work Description</h2>
+      <textarea id="desc" rows="4" autocomplete="off" spellcheck="false" placeholder="Describe what you did today…&#10;&#10;e.g. Fixed image upload, refactored auth middleware, investigated cart bug."></textarea>
+      <div class="row">
+        <span class="label-sm">Tasks:</span>
+        <input type="number" id="task-count" value="5" min="1" max="15">
+        <button class="btn-primary" id="fmt-btn" onclick="aiFormat()">✨ AI Format <span class="spin" id="fmt-spin"></span></button>
+        <button class="btn-ghost" id="fmt-cancel" onclick="cancelFormat()" style="display:none;color:var(--red);border-color:var(--red)">✕ Cancel</button>
+        <button class="btn-ghost" onclick="manualMode()">Manual</button>
+      </div>
+      <div class="log-panel" id="log-panel">
+        <div style="color:var(--muted);margin-bottom:.25rem">Model attempts:</div>
+        <div id="log-lines"></div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="card">
+      <h2>Step 2 — Task List <span id="task-count-badge" style="color:var(--muted);font-weight:400;font-size:.75rem"></span></h2>
+      <div class="empty-hint" id="empty-hint">AI Format above or click "Manual"</div>
+      <div class="section-label" id="lbl-todo">Todo</div>
+      <ul id="task-list"></ul>
+      <div class="section-label" id="lbl-done">Completed</div>
+      <ul id="done-list"></ul>
+      <button class="add-row" id="add-row-btn" onclick="addRow('')">+ Add task</button>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="card">
+      <h2>Step 3 — Generate</h2>
+      <div class="toggle-row">
+        <label class="toggle"><input type="checkbox" id="send-chat"><span class="sl"></span></label>
+        <span>Send to Google Chat</span>
+      </div>
+      <div class="row" style="margin-top:.8rem">
+        <button class="btn-run" id="run-btn" onclick="runReport()" disabled>
+          🚀 Generate Report <span class="spin" id="run-spin"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="card" id="status-panel">
+      <h2>Result</h2>
+      <div id="steps-out"></div>
+      <div class="links" id="result-links"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Right: PDF Preview ── -->
+  <div class="right-panel">
+    <div class="pdf-toolbar">
+      <span>PDF Preview</span>
+      <span id="pdf-status" style="color:var(--muted);font-weight:400">— generate a report to see preview</span>
+      <div style="margin-left:auto;display:flex;gap:.75rem" id="pdf-links"></div>
+    </div>
+    <div class="pdf-placeholder" id="pdf-placeholder">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      <div>PDF preview will appear here after generating</div>
+    </div>
+    <iframe id="pdf-frame" style="display:none" title="PDF Preview"></iframe>
+  </div>
+</div>
+
+<script>
+  let _modelChain = [];
+
+  function renderPills(chain, preferred) {
+    _modelChain = chain;
+    const sorted = preferred
+      ? [preferred, ...chain.filter(m => m !== preferred)]
+      : chain;
+    const mc = document.getElementById('model-chain');
+    mc.innerHTML = sorted.slice(0, 8).map(m => {
+      const isActive = m === preferred;
+      const badge = isActive ? ' ★' : '';
+      return `<span class="model-pill ${isActive?'active':''}"
+        title="Click to use: ${m}"
+        onclick="selectModel('${m}')">${m.split('/').pop()}${badge}</span>`;
+    }).join('');
+  }
+
+  async function selectModel(model) {
+    try {
+      const fd = new FormData();
+      fd.append('model', model);
+      const r = await fetch('/api/set-model', { method:'POST', body:fd });
+      const d = await r.json();
+      if (d.ok) renderPills(d.chain, d.model);
+    } catch(e) {
+      console.error('selectModel failed:', e);
+    }
+  }
+
+  async function loadHealth() {
+    try {
+      const r = await fetch('/api/health');
+      const d = await r.json();
+      const set = (id, cls) => { const el = document.getElementById(id); if(el) el.className = 'dot ' + cls; };
+      set('dot-doc',  d.doc_id  ? 'ok' : 'err');
+      set('dot-chat', d.chat_space && d.chat_space !== 'not set' ? 'ok' : 'warn');
+      set('dot-llm',  d.openrouter === 'configured' ? 'ok' : 'err');
+      const lbl = document.getElementById('llm-label');
+      if (lbl) lbl.textContent = d.preferred ? d.preferred.split('/').pop() : 'not set';
+      renderPills(d.model_chain || [], d.preferred || '');
+    } catch(e) {}
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function _updateSectionLabels() {
+    const todoN = document.querySelectorAll('#task-list .ti').length;
+    const doneN = document.querySelectorAll('#done-list .ti').length;
+    document.getElementById('lbl-todo').classList.toggle('visible', todoN > 0 && doneN > 0);
+    document.getElementById('lbl-done').classList.toggle('visible', doneN > 0);
+  }
+
+  function addRow(val, done) {
+    document.getElementById('empty-hint').style.display = 'none';
+    document.getElementById('add-row-btn').style.display = 'block';
+    const li = document.createElement('li');
+    li.className = done ? 'ti done' : 'ti';
+    const checked = done ? 'checked' : '';
+    li.innerHTML = `<input type="checkbox" class="cb" ${checked} onchange="toggleDone(this)"><input type="text" value="${esc(val)}" placeholder="Module — what was done" oninput="sync()" onkeydown="rk(event,this)"><button class="rm" onclick="removeRow(this)">×</button>`;
+    const list = done ? document.getElementById('done-list') : document.getElementById('task-list');
+    list.appendChild(li);
+    if (!done) li.querySelectorAll('input[type=text]')[0].focus();
+    sync();
+  }
+
+  function toggleDone(cb) {
+    const li = cb.closest('li');
+    const textVal = li.querySelector('input[type=text]').value;
+    li.remove();
+    addRow(textVal, cb.checked);
+    _updateSectionLabels();
+    sync();
+  }
+
+  function removeRow(btn) {
+    btn.closest('li').remove();
+    const todoN = document.querySelectorAll('#task-list .ti').length;
+    const doneN = document.querySelectorAll('#done-list .ti').length;
+    if (todoN + doneN === 0) {
+      document.getElementById('empty-hint').style.display = 'block';
+      document.getElementById('add-row-btn').style.display = 'none';
+    }
+    _updateSectionLabels();
+    sync();
+  }
+
+  function rk(e) {
+    if (e.key === 'Enter') { e.preventDefault(); addRow(''); }
+  }
+
+  function sync() {
+    const todoInputs = document.querySelectorAll('#task-list .ti input[type=text]');
+    const doneInputs = document.querySelectorAll('#done-list .ti input[type=text]');
+    const all = [...todoInputs, ...doneInputs];
+    const filled = all.filter(i => i.value.trim()).length;
+    document.getElementById('run-btn').disabled = filled === 0;
+    const total = all.length;
+    const doneCount = doneInputs.length;
+    document.getElementById('task-count-badge').textContent = total
+      ? `(${total - doneCount} todo${doneCount ? ', ' + doneCount + ' done' : ''})`
+      : '';
+    _updateSectionLabels();
+  }
+
+  function manualMode() {
+    const n = parseInt(document.getElementById('task-count').value) || 5;
+    document.getElementById('task-list').innerHTML = '';
+    document.getElementById('done-list').innerHTML = '';
+    for (let i = 0; i < n; i++) addRow('');
+  }
+
+  let _fmtAbort = null;
+  let _fmtUserCancelled = false;
+
+  function cancelFormat() {
+    if (_fmtAbort) {
+      _fmtUserCancelled = true;
+      _fmtAbort.abort();
+    }
+  }
+
+  async function aiFormat() {
+    const desc = document.getElementById('desc').value.trim();
+    if (!desc) { showErr('Enter a work description first.'); return; }
+    const count = parseInt(document.getElementById('task-count').value) || 5;
+    const spin = document.getElementById('fmt-spin');
+    const btn = document.getElementById('fmt-btn');
+    const cancelBtn = document.getElementById('fmt-cancel');
+    spin.style.display = 'inline-block';
+    btn.disabled = true;
+    cancelBtn.style.display = 'inline-block';
+    hideErr();
+
+    _fmtUserCancelled = false;
+    _fmtAbort = new AbortController();
+    const timer = setTimeout(() => _fmtAbort.abort(), 90000);
+
+    try {
+      const fd = new FormData();
+      fd.append('description', desc);
+      fd.append('task_count', count);
+      const r = await fetch('/api/preview', { method:'POST', body:fd, signal: _fmtAbort.signal });
+      const d = await r.json();
+
+      if (d.attempts && d.attempts.length) {
+        const panel = document.getElementById('log-panel');
+        const lines = document.getElementById('log-lines');
+        panel.style.display = 'block';
+        lines.innerHTML = d.attempts.map(a => {
+          const cls = a.ok ? 'log-ok' : 'log-fail';
+          const icon = a.ok ? '✓' : '✗';
+          const label = a.model.split('/').pop();
+          const err = a.error ? ` — ${a.error}` : '';
+          return `<div class="log-line"><span class="${cls}">${icon}</span><span>${label}${err}</span><span class="log-ms">${a.ms}ms</span></div>`;
+        }).join('');
+        if (d.model_used) {
+          lines.innerHTML += `<div style="color:var(--green);margin-top:.25rem">✓ Used: ${d.model_used.split('/').pop()}</div>`;
+        }
+      }
+
+      if (!d.ok) { showErr('AI format failed: ' + d.error); return; }
+      document.getElementById('task-list').innerHTML = '';
+      document.getElementById('done-list').innerHTML = '';
+      d.tasks.forEach(t => addRow(t));
+    } catch(e) {
+      if (e.name === 'AbortError') {
+        if (!_fmtUserCancelled) showErr('Request timed out. All models busy — try again.');
+      } else {
+        showErr('Request failed: ' + e.message);
+      }
+    } finally {
+      clearTimeout(timer);
+      spin.style.display = 'none';
+      btn.disabled = false;
+      btn.style.opacity = '';
+      cancelBtn.style.display = 'none';
+      _fmtAbort = null;
+      _fmtUserCancelled = false;
+    }
+  }
+
+  function showErr(msg) {
+    let el = document.getElementById('err-box');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'err-box';
+      el.style.cssText = 'margin-top:.75rem;padding:.6rem .8rem;background:#2d1515;border:1px solid var(--red);border-radius:6px;color:var(--red);font-size:.82rem;';
+      document.querySelector('.left-panel').insertBefore(el, document.getElementById('status-panel'));
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function hideErr() {
+    const el = document.getElementById('err-box');
+    if (el) el.style.display = 'none';
+  }
+
+  function showPdfPreview(url, driveLink) {
+    document.getElementById('pdf-placeholder').style.display = 'none';
+    const frame = document.getElementById('pdf-frame');
+
+    // Google Drive PDF → use Drive viewer embed
+    let embedUrl = url;
+    if (driveLink && driveLink.includes('drive.google.com')) {
+      const match = driveLink.match(/\/file\/d\/([^/]+)/);
+      if (match) {
+        embedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+      }
+    }
+
+    frame.src = embedUrl;
+    frame.style.display = 'block';
+    document.getElementById('pdf-status').textContent = '— PDF ready';
+
+    const linksEl = document.getElementById('pdf-links');
+    let html = '';
+    if (driveLink) html += `<a href="${driveLink}" target="_blank">↗ Open</a>`;
+    linksEl.innerHTML = html;
+  }
+
+  async function runReport() {
+    const inputs = document.querySelectorAll('#task-list .ti input[type=text], #done-list .ti input[type=text]');
+    const tasks = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+    if (!tasks.length) { alert('Add at least one task.'); return; }
+
+    const sendChat = document.getElementById('send-chat').checked;
+    const btn = document.getElementById('run-btn');
+    const spin = document.getElementById('run-spin');
+    btn.disabled = true;
+    spin.style.display = 'inline-block';
+
+    const panel = document.getElementById('status-panel');
+    panel.style.display = 'block';
+    document.getElementById('steps-out').innerHTML = '<div class="step"><span class="si">⏳</span><div><div class="sl-l">Running pipeline…</div></div></div>';
+    document.getElementById('result-links').innerHTML = '';
+    document.getElementById('pdf-status').textContent = '— generating…';
+
+    try {
+      const fd = new FormData();
+      fd.append('tasks', tasks.join('\n'));
+      fd.append('send_chat', sendChat);
+      const r = await fetch('/api/run', { method:'POST', body:fd });
+      const d = await r.json();
+      renderResult(d);
+    } catch(e) {
+      document.getElementById('steps-out').innerHTML = `<div class="step fail"><span class="si">❌</span><div>${esc(e.message)}</div></div>`;
+    } finally {
+      btn.disabled = false;
+      spin.style.display = 'none';
+      sync();
+    }
+  }
+
+  function renderResult(d) {
+    const stepDefs = [
+      { k:'format', l:'Format Tasks' },
+      { k:'doc',    l:'Update Google Doc' },
+      { k:'pdf',    l:'Export PDF' },
+      { k:'chat',   l:'Send to Chat' },
+    ];
+    const s = d.steps || {};
+    let html = '';
+    for (const { k, l } of stepDefs) {
+      const st = s[k];
+      if (!st || st.ok === null) continue;
+      const icon = st.ok ? '✅' : '❌';
+      const cls = st.ok ? 'ok' : 'fail';
+      html += `<div class="step"><span class="si">${icon}</span><div><div class="sl-l ${cls}">${l}</div>${st.message ? `<div class="sl-m">${esc(st.message)}</div>` : ''}</div></div>`;
+    }
+    document.getElementById('steps-out').innerHTML = html || '<div class="step" style="color:var(--muted)">No steps ran.</div>';
+
+    let links = '';
+    if (d.doc_url) links += `<a href="${d.doc_url}" target="_blank">📝 Open Doc</a>`;
+    if (d.pdf_drive_link) links += `<a href="${d.pdf_drive_link}" target="_blank">📄 PDF</a>`;
+    else if (d.pdf_path) links += `<span style="color:var(--muted);font-size:.78rem">PDF: ${esc(d.pdf_path)}</span>`;
+    document.getElementById('result-links').innerHTML = links;
+
+    // Show PDF preview on right panel
+    if (d.pdf_drive_link) {
+      showPdfPreview(d.pdf_drive_link, d.pdf_drive_link);
+    } else if (d.doc_url) {
+      // Fallback: show Google Doc export as PDF in iframe
+      const docMatch = d.doc_url.match(/\/d\/([^/]+)/);
+      if (docMatch) {
+        showPdfPreview(`https://docs.google.com/document/d/${docMatch[1]}/preview`, null);
+        document.getElementById('pdf-links').innerHTML = `<a href="${d.doc_url}" target="_blank">↗ Doc</a>`;
+        document.getElementById('pdf-status').textContent = '— Doc preview';
+      }
+    }
+  }
+
+  loadHealth();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# DDR — start dev server  |  bash dev [port]
+
+PORT=${1:-8765}
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+VENV="$ROOT/venv"
+
+[ -d "$VENV" ] && source "$VENV/bin/activate"
+
+fuser -k "${PORT}/tcp" 2>/dev/null || true
+sleep 0.4
+
+echo "▶  DDR — http://localhost:${PORT}   (Ctrl+C to stop)"
+echo ""
+
+# Kill entire process group on Ctrl+C
+trap 'kill 0' INT TERM EXIT
+
+cd "$ROOT"
+uvicorn src.ddr.web.app:app --port "$PORT" &
+wait
